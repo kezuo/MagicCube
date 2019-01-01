@@ -1,10 +1,11 @@
 from OpenGL.GL import *
-from OpenGL.GLU import gluErrorString
+from OpenGL.GLU import *
 from PyQt4.QtGui import *
 from PyQt4.QtOpenGL import *
 from PyQt4 import QtOpenGL
 from PyQt4.QtCore import *
 from numpy import *
+import math
 class MagicCube:
 	corners=(0,2,6,8,18,20,24,26)
 	edges=(1,5,7,3,19,23,25,21)
@@ -38,10 +39,10 @@ class MagicCube:
 			self.cubes[i].m.translate(0,MagicCube.dist,0)
 		for i in 0,1,2,9,10,11,18,19,20:
 			self.cubes[i].n=0xff00ff00
-			self.cubes[i].m.translate(0,0,MagicCube.dist)
+			self.cubes[i].m.translate(0,0,-MagicCube.dist)
 		for i in 6,7,8,15,16,17,24,25,26:
 			self.cubes[i].f=0xffff00ff
-			self.cubes[i].m.translate(0,0,-MagicCube.dist)
+			self.cubes[i].m.translate(0,0,MagicCube.dist)
 		self.cubes[MagicCube.origin]=None
 		for cube in self.cubes:
 			if cube:
@@ -50,50 +51,50 @@ class MagicCube:
 				if cube.l:
 					glBegin(GL_TRIANGLE_FAN)
 					glColor(QColor(cube.l).getRgb())
-					glVertex3f(-1,-1,1)
-					glVertex3f(-1,1,1)
-					glVertex3f(-1,1,-1)
 					glVertex3f(-1,-1,-1)
+					glVertex3f(-1,1,-1)
+					glVertex3f(-1,1,1)
+					glVertex3f(-1,-1,1)
 					glEnd()
 				if cube.r:
 					glBegin(GL_TRIANGLE_FAN)
 					glColor(QColor(cube.r).getRgb())
-					glVertex3f(1,-1,1)
 					glVertex3f(1,-1,-1)
-					glVertex3f(1,1,-1)
+					glVertex3f(1,-1,1)
 					glVertex3f(1,1,1)
+					glVertex3f(1,1,-1)
 					glEnd()
 				if cube.b:
 					glBegin(GL_TRIANGLE_FAN)
 					glColor(QColor(cube.b).getRgb())
-					glVertex3f(-1,-1,1)
 					glVertex3f(-1,-1,-1)
-					glVertex3f(1,-1,-1)
+					glVertex3f(-1,-1,1)
 					glVertex3f(1,-1,1)
+					glVertex3f(1,-1,-1)
 					glEnd()
 				if cube.t:
 					glBegin(GL_TRIANGLE_FAN)
 					glColor(QColor(cube.t).getRgb())
-					glVertex3f(-1,1,1)
-					glVertex3f(1,1,1)
-					glVertex3f(1,1,-1)
 					glVertex3f(-1,1,-1)
+					glVertex3f(1,1,-1)
+					glVertex3f(1,1,1)
+					glVertex3f(-1,1,1)
 					glEnd()
 				if cube.n:
 					glBegin(GL_TRIANGLE_FAN)
 					glColor(QColor(cube.n).getRgb())
-					glVertex3f(-1,-1,1)
-					glVertex3f(1,-1,1)
-					glVertex3f(1,1,1)
-					glVertex3f(-1,1,1)
+					glVertex3f(-1,-1,-1)
+					glVertex3f(1,-1,-1)
+					glVertex3f(1,1,-1)
+					glVertex3f(-1,1,-1)
 					glEnd()
 				if cube.f:
 					glBegin(GL_TRIANGLE_FAN)
 					glColor(QColor(cube.f).getRgb())
-					glVertex3f(-1,-1,-1)
-					glVertex3f(-1,1,-1)
-					glVertex3f(1,1,-1)
-					glVertex3f(1,-1,-1)
+					glVertex3f(-1,-1,1)
+					glVertex3f(-1,1,1)
+					glVertex3f(1,1,1)
+					glVertex3f(1,-1,1)
 					glEnd()
 				glEndList()
 	
@@ -113,12 +114,15 @@ class MagicWidget(QGLWidget):
 		self.modelView.scale(0.125,0.125,0.125)
 		self.timer=QTimer()
 		self.timer.setSingleShot(False)
-		self.timer.timeout.connect(lambda :self.update())
-		#self.timer.start(25)
-		self.nearZ=0
+		self.timer.timeout.connect(self.animate)
+		self.timer.setInterval(25)
 	def initializeGL(self):
 		self.magicCube=MagicCube()
+	def animate(self):
+		self.modelView.rotate(1,1,1,1)
+		self.update()
 	def __setGLPaintState(self):
+		glPointSize(3)
 		glClearColor(0,0,0,0)
 		glClearDepth(1)
 		glDepthRange(0,1)
@@ -133,25 +137,40 @@ class MagicWidget(QGLWidget):
 		self.w=w
 		self.h=h
 		self.side = min(w, h)
+	def __addPoint(self,event):
+		z=glReadPixelsf(x,y,1,1,GL_DEPTH_COMPONENT)
+		x,y,z=gluUnProject(x,y,z,model=array(self.modelView.data(),dtype=float64))
 	def mousePressEvent(self,event):	
-		x=event.x()
-		y=event.y()
-		print x,y
-		y=self.h-y
-		print glReadPixelsf(x,y,1,1,GL_DEPTH_COMPONENT)
+		self.startX=event.x()
+		self.startY=self.h-event.y()
+		self.axisX=None
+		self.axisY=None
+		self.rotateM=QMatrix4x4()
+		self.backupM=QMatrix4x4(self.modelView)
 	def mouseMoveEvent(self,event):
-		pass
+		curX=event.x()
+		curY=self.h-event.y()
+		dX=curX-self.startX
+		dY=curY-self.startY
+		if not self.axisX:
+			self.axisL=math.sqrt(dX*dX+dY*dY)
+			if self.axisL<10:
+				return
+			self.axisX=-dY
+			self.axisY=dX
+		degree=(self.axisX*dY-self.axisY*dX)/self.axisL*360/self.side
+		self.rotateM.setToIdentity()
+		self.rotateM.rotate(degree,self.axisX,self.axisY,0)
+		self.modelView=self.rotateM*self.backupM
+		if not self.timer.isActive():
+			self.update()
 	def mouseReleaseEvent(self,event):
 		pass
 	def paintEvent(self,pE):
 		painter=QPainter(self)
 		self.__setGLPaintState()
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-		self.modelView.rotate(1,1,1,1)
 		self.magicCube.draw()
-		glFinish()
-		glDepthRange(self.nearZ,self.nearZ)
-		painter.fillRect(200,200,100,100,QColor(0xffffffff))
 app=QApplication(['demo'])
 glFormat=QGLFormat()
 glFormat.setVersion(3,0)
@@ -162,11 +181,10 @@ vBox=QVBoxLayout()
 topButton=QPushButton("topButton")
 bottomButton=QPushButton("bottomButton")
 bar=QSlider(Qt.Horizontal)
-bottomButton.clicked.connect(lambda :magicWidget.timer.start(25))
+bottomButton.clicked.connect(lambda :magicWidget.timer.start())
 topButton.clicked.connect(lambda :magicWidget.timer.stop())
 def setValue(x):
-	magicWidget.nearZ=x/100.0
-	print magicWidget.nearZ
+	pass
 bar.valueChanged.connect(setValue)
 magicWidget=MagicWidget()
 overallWidget.setLayout(vBox)
