@@ -141,27 +141,22 @@ class MagicWidget(QGLWidget):
 		z=glReadPixelsf(x,y,1,1,GL_DEPTH_COMPONENT)
 		x,y,z=gluUnProject(x,y,z,model=array(self.modelView.data(),dtype=float64))
 	def mousePressEvent(self,event):	
-		self.startX=event.x()
-		self.startY=self.h-event.y()
-		self.axisX=None
-		self.axisY=None
+		self.oldX=event.x()
+		self.oldY=self.h-event.y()
 		self.rotateM=QMatrix4x4()
-		self.backupM=QMatrix4x4(self.modelView)
 	def mouseMoveEvent(self,event):
 		curX=event.x()
 		curY=self.h-event.y()
-		dX=curX-self.startX
-		dY=curY-self.startY
-		if not self.axisX:
-			self.axisL=math.sqrt(dX*dX+dY*dY)
-			if self.axisL<10:
-				return
-			self.axisX=-dY
-			self.axisY=dX
-		degree=(self.axisX*dY-self.axisY*dX)/self.axisL*360/self.side
+		dX=curX-self.oldX
+		dY=curY-self.oldY
+		axisX=dY
+		axisY=-dX
+		degree=math.sqrt(dX*dX+dY*dY)*360/self.side
 		self.rotateM.setToIdentity()
-		self.rotateM.rotate(degree,self.axisX,self.axisY,0)
-		self.modelView=self.rotateM*self.backupM
+		self.rotateM.rotate(degree,axisX,axisY,0)
+		self.modelView=self.rotateM*self.modelView	
+		self.oldX=curX
+		self.oldY=curY
 		if not self.timer.isActive():
 			self.update()
 	def mouseReleaseEvent(self,event):
