@@ -47,8 +47,10 @@ class MagicCube:
 			glNewList(self.glList,GL_COMPILE)
 			for face in self.faces:
 				if self.faces[face]:
+					qColor=QColor()
+					qColor.setRgba(self.faces[face])
 					glBegin(GL_TRIANGLE_FAN)
-					glColor(QColor(self.faces[face]).getRgb())
+					glColor(qColor.getRgbF())
 					glVertex3f(*face.a)
 					glVertex3f(*face.b)
 					glVertex3f(*face.c)
@@ -76,6 +78,16 @@ class MagicCube:
 				glMultMatrixf(array(cube.matrix.data(),dtype=float32))
 				glCallList(cube.glList)
 				glPopMatrix()
+	def operaBegin(self,color,x,y,z,wx,wy):
+		color=(color>>8)|0xff000000
+		for plane in self.cube.planes:
+			if plane.color==color:
+				break
+		print 'Begin',wx,wy
+	def operaContin(self,wx,wy):
+		print 'Contin',wx,wy
+	def operaEnd(self,wx,wy):
+		print 'End',wx,wy
 class MagicWidget(QGLWidget):
 	def __init__(self,parent=None):
 		QGLWidget.__init__(self,parent)
@@ -88,10 +100,13 @@ class MagicWidget(QGLWidget):
 		self.timer.setInterval(25)
 	def initializeGL(self):
 		self.magicCube=MagicCube()
+		self.passEvent=False
+		self.cardC=0xffffff
 	def animate(self):
 		self.modelView.rotate(1,1,1,1)
 		self.update()
 	def __setGLPaintState(self):
+		glEnable(GL_BLEND)
 		glHint(GL_POLYGON_SMOOTH_HINT,GL_FASTEST)
 		glPointSize(3)
 		glClearColor(0,0,0,0)
@@ -108,16 +123,24 @@ class MagicWidget(QGLWidget):
 		self.w=w
 		self.h=h
 		self.side = min(w, h)
-	def __addPoint(self,event):
-		z=glReadPixelsf(x,y,1,1,GL_DEPTH_COMPONENT)
-		x,y,z=gluUnProject(x,y,z,model=array(self.modelView.data(),dtype=float64))
 	def mousePressEvent(self,event):	
 		self.oldX=event.x()
 		self.oldY=self.h-event.y()
 		self.rotateM=QMatrix4x4()
+		if not self.passEvent:
+			depth=glReadPixelsf(self.oldX,self.oldY,1,1,GL_DEPTH_COMPONENT)
+			color=glReadPixels(self.oldX,self.oldY,1,1,GL_RGBA,GL_UNSIGNED_INT_8_8_8_8)
+			color=color[0][0]
+			if color:
+				x,y,z=gluUnProject(self.oldX,self.oldY,depth,model=array(self.modelView.data(),dtype=float64))
+				self.passEvent=True
+				self.magicCube.operaBegin(color,x,y,z,self.oldX,self.oldY)
 	def mouseMoveEvent(self,event):
 		curX=event.x()
 		curY=self.h-event.y()
+		if self.passEvent:
+			self.magicCube.operaContin(curX,curY)
+			return 
 		dX=curX-self.oldX
 		dY=curY-self.oldY
 		axisX=dY
@@ -131,15 +154,22 @@ class MagicWidget(QGLWidget):
 		if not self.timer.isActive():
 			self.update()
 	def mouseReleaseEvent(self,event):
-		pass
+		endX=event.x()
+		endY=self.h-event.y()
+		if self.passEvent:
+			self.passEvent=False
+			self.magicCube.operaEnd(endX,endY)
 	def paintEvent(self,pE):
 		painter=QPainter(self)
 		self.__setGLPaintState()
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
+		glColor(QColor(self.cardC).getRgbF())
+		glRectf(0,0,6,6)
 		self.magicCube.draw()
 app=QApplication(['demo'])
 glFormat=QGLFormat()
 glFormat.setVersion(3,0)
+glFormat.setAlpha(True)
 QGLFormat.setDefaultFormat(glFormat)
 overallWidget=QWidget()
 overallWidget.setMinimumSize(400,600)
