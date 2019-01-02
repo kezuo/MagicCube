@@ -7,104 +7,74 @@ from PyQt4.QtCore import *
 from numpy import *
 import math
 class MagicCube:
-	corners=(0,2,6,8,18,20,24,26)
-	edges=(1,5,7,3,19,23,25,21)
-	centers=(4,10,14,16,12,22)
-	origin=13
-	dist=2.75
-	class Cube:
+	cornerIndexs=(0,2,6,8,18,20,24,26)
+	edgeIndexs=(1,5,7,3,19,23,25,21)
+	centerIndexs=(4,10,14,16,12,22)
+	originIndex=13
+	class cube:
+		class face:
+			def __init__(self,a,b,c,d,normal,color,indexs):
+				self.a=a
+				self.b=b
+				self.c=c
+				self.d=d
+				self.normal=normal
+				self.color=color
+				self.indexs=indexs
+		dist=2.75
+		left=face((-1,-1,-1),(-1,1,-1),(-1,1,1),(-1,-1,1),(-dist,0,0),0xffffffff,(0,3,6,9,12,15,18,21,24))
+		right=face((1,-1,-1),(1,-1,1),(1,1,1),(1,1,-1),(dist,0,0),0xff0000ff,(2,5,8,11,14,17,20,23,26))
+		bottom=face((-1,-1,-1),(-1,-1,1),(1,-1,1),(1,-1,-1),(0,-dist,0),0xffff0000,(18,19,20,21,22,23,24,25,26))
+		top=face((-1,1,-1),(1,1,-1),(1,1,1),(-1,1,1),(0,dist,0),0xff00ffff,(0,1,2,3,4,5,6,7,8))
+		near=face((-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(0,0,-dist),0xff00ff00,(0,1,2,9,10,11,18,19,20))
+		far=face((-1,-1,1),(-1,1,1),(1,1,1),(1,-1,1),(0,0,dist),0xffff00ff,(6,7,8,15,16,17,24,25,26))
+		planes=(left,right,bottom,top,near,far)
 		def __init__(self):
-			self.l=0
-			self.r=0
-			self.b=0
-			self.t=0
-			self.n=0
-			self.f=0
-			self.m=QMatrix4x4()
+			self.faces={
+			self.left:0,
+			self.right:0,
+			self.bottom:0,
+			self.top:0,
+			self.near:0,
+			self.far:0
+			}
+			self.matrix=QMatrix4x4()
+			self.glList=0
+		def genList(self):
+			if self.glList:
+				glDeleteLists(self.glList)
+			self.glList=glGenLists(1)		
+			glNewList(self.glList,GL_COMPILE)
+			for face in self.faces:
+				if self.faces[face]:
+					glBegin(GL_TRIANGLE_FAN)
+					glColor(QColor(self.faces[face]).getRgb())
+					glVertex3f(*face.a)
+					glVertex3f(*face.b)
+					glVertex3f(*face.c)
+					glVertex3f(*face.d)
+					glEnd()
+			glEndList()
 	def __init__(self):
 		self.cubes=[]
 		for i in range(27):
-			self.cubes.append(MagicCube.Cube())
-		for i in 0,3,6,9,12,15,18,21,24:
-			self.cubes[i].l=0xffffffff
-			self.cubes[i].m.translate(-MagicCube.dist,0,0)
-		for i in 2,5,8,11,14,17,20,23,26:
-			self.cubes[i].r=0xff0000ff
-			self.cubes[i].m.translate(MagicCube.dist,0,0)
-		for i in 18,19,20,21,22,23,24,25,26:
-			self.cubes[i].b=0xffff0000
-			self.cubes[i].m.translate(0,-MagicCube.dist,0)
-		for i in 0,1,2,3,4,5,6,7,8:
-			self.cubes[i].t=0xff00ffff
-			self.cubes[i].m.translate(0,MagicCube.dist,0)
-		for i in 0,1,2,9,10,11,18,19,20:
-			self.cubes[i].n=0xff00ff00
-			self.cubes[i].m.translate(0,0,-MagicCube.dist)
-		for i in 6,7,8,15,16,17,24,25,26:
-			self.cubes[i].f=0xffff00ff
-			self.cubes[i].m.translate(0,0,MagicCube.dist)
-		self.cubes[MagicCube.origin]=None
-		for cube in self.cubes:
-			if cube:
-				cube.displayList=glGenLists(1)		
-				glNewList(cube.displayList,GL_COMPILE)
-				if cube.l:
-					glBegin(GL_TRIANGLE_FAN)
-					glColor(QColor(cube.l).getRgb())
-					glVertex3f(-1,-1,-1)
-					glVertex3f(-1,1,-1)
-					glVertex3f(-1,1,1)
-					glVertex3f(-1,-1,1)
-					glEnd()
-				if cube.r:
-					glBegin(GL_TRIANGLE_FAN)
-					glColor(QColor(cube.r).getRgb())
-					glVertex3f(1,-1,-1)
-					glVertex3f(1,-1,1)
-					glVertex3f(1,1,1)
-					glVertex3f(1,1,-1)
-					glEnd()
-				if cube.b:
-					glBegin(GL_TRIANGLE_FAN)
-					glColor(QColor(cube.b).getRgb())
-					glVertex3f(-1,-1,-1)
-					glVertex3f(-1,-1,1)
-					glVertex3f(1,-1,1)
-					glVertex3f(1,-1,-1)
-					glEnd()
-				if cube.t:
-					glBegin(GL_TRIANGLE_FAN)
-					glColor(QColor(cube.t).getRgb())
-					glVertex3f(-1,1,-1)
-					glVertex3f(1,1,-1)
-					glVertex3f(1,1,1)
-					glVertex3f(-1,1,1)
-					glEnd()
-				if cube.n:
-					glBegin(GL_TRIANGLE_FAN)
-					glColor(QColor(cube.n).getRgb())
-					glVertex3f(-1,-1,-1)
-					glVertex3f(1,-1,-1)
-					glVertex3f(1,1,-1)
-					glVertex3f(-1,1,-1)
-					glEnd()
-				if cube.f:
-					glBegin(GL_TRIANGLE_FAN)
-					glColor(QColor(cube.f).getRgb())
-					glVertex3f(-1,-1,1)
-					glVertex3f(-1,1,1)
-					glVertex3f(1,1,1)
-					glVertex3f(1,-1,1)
-					glEnd()
-				glEndList()
-	
+			self.cubes.append(MagicCube.cube())
+		self.cubes[MagicCube.originIndex]=None
+		for plane in MagicCube.cube.planes:
+			for i in plane.indexs:
+				if self.cubes[i]:
+					self.cubes[i].faces[plane]=plane.color
+					self.cubes[i].matrix.translate(*plane.normal)
+		for i in range(27):
+			if self.cubes[i]:
+				self.cubes[i].genList()
 	def draw(self):
 		for cube in self.cubes:
 			if cube:
 				glMatrixMode(GL_MODELVIEW)
 				glPushMatrix()
-				glMultMatrixf(array(cube.m.data(),dtype=float32))
-				glCallList(cube.displayList)
+				glMultMatrixf(array(cube.matrix.data(),dtype=float32))
+				glCallList(cube.glList)
 				glPopMatrix()
 class MagicWidget(QGLWidget):
 	def __init__(self,parent=None):
@@ -122,6 +92,7 @@ class MagicWidget(QGLWidget):
 		self.modelView.rotate(1,1,1,1)
 		self.update()
 	def __setGLPaintState(self):
+		glHint(GL_POLYGON_SMOOTH_HINT,GL_FASTEST)
 		glPointSize(3)
 		glClearColor(0,0,0,0)
 		glClearDepth(1)
