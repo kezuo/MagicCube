@@ -42,7 +42,7 @@ class MagicCube:
 			self.glList=0
 		def genList(self):
 			if self.glList:
-				glDeleteLists(self.glList)
+				glDeleteLists(self.glList,1)
 			self.glList=glGenLists(1)		
 			glNewList(self.glList,GL_COMPILE)
 			for face in self.faces:
@@ -80,14 +80,30 @@ class MagicCube:
 				glPopMatrix()
 	def operaBegin(self,color,x,y,z,wx,wy):
 		color=(color>>8)|0xff000000
-		for plane in self.cube.planes:
-			if plane.color==color:
-				break
-		print 'Begin',wx,wy
+		finded=False
+		i=0
+		for cube in self.cubes:
+			if cube:
+				invertedM,sucess=cube.matrix.inverted()
+				nativeV=invertedM*QVector4D(x,y,z,1)
+				print i,nativeV
+				nativeX,nativeY,nativeZ=math.fabs(nativeV.x()),math.fabs(nativeV.y()),math.fabs(nativeV.z())
+				if nativeX<1.03 and nativeY<1.03 and nativeZ<1.03:
+					finded=True
+					break
+			i=i+1
+		if not finded:
+			print 'No cube finded',x,y,z
+			return
+		for face in cube.planes:
+			if cube.faces[face]==color:
+				cube.faces[face]=(~color)&0xffffffff|0xff000000
+				cube.genList()
+				self.owner.update()
 	def operaContin(self,wx,wy):
-		print 'Contin',wx,wy
+		pass
 	def operaEnd(self,wx,wy):
-		print 'End',wx,wy
+		pass
 class MagicWidget(QGLWidget):
 	def __init__(self,parent=None):
 		QGLWidget.__init__(self,parent)
@@ -100,8 +116,8 @@ class MagicWidget(QGLWidget):
 		self.timer.setInterval(25)
 	def initializeGL(self):
 		self.magicCube=MagicCube()
+		self.magicCube.owner=self
 		self.passEvent=False
-		self.cardC=0xffffff
 	def animate(self):
 		self.modelView.rotate(1,1,1,1)
 		self.update()
@@ -163,8 +179,6 @@ class MagicWidget(QGLWidget):
 		painter=QPainter(self)
 		self.__setGLPaintState()
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
-		glColor(QColor(self.cardC).getRgbF())
-		glRectf(0,0,6,6)
 		self.magicCube.draw()
 app=QApplication(['demo'])
 glFormat=QGLFormat()
