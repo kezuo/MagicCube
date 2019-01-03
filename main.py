@@ -59,9 +59,9 @@ class MagicCube:
 			glEndList()
 	def __init__(self):
 		self.cubes=[]
+		self.qVRotateAxis=None
 		for i in range(27):
 			self.cubes.append(MagicCube.cube())
-		self.cubes[MagicCube.originIndex]=None
 		for plane in MagicCube.cube.planes:
 			for i in plane.indexs:
 				if self.cubes[i]:
@@ -78,31 +78,83 @@ class MagicCube:
 				glMultMatrixf(array(cube.matrix.data(),dtype=float32))
 				glCallList(cube.glList)
 				glPopMatrix()
-	def operaBegin(self,color,x,y,z,wx,wy):
+	def operaBegin(self,wx,wy):
+		self.oldX,self.oldY=wx,wy
+		self.rotateM=QMatrix4x4()
+		depth=glReadPixelsf(wx,wy,1,1,GL_DEPTH_COMPONENT)
+		color=glReadPixels(wx,wy,1,1,GL_RGBA,GL_UNSIGNED_INT_8_8_8_8)
+		x,y,z=gluUnProject(wx,wy,depth,model=array(self.owner.modelView.data(),dtype=float64))
+		self.qVObjectStart=QVector3D(x,y,z)
+		color=color[0][0]
 		color=(color>>8)|0xff000000
 		finded=False
-		i=0
-		for cube in self.cubes:
-			if cube:
-				invertedM,sucess=cube.matrix.inverted()
-				nativeV=invertedM*QVector4D(x,y,z,1)
-				print i,nativeV
-				nativeX,nativeY,nativeZ=math.fabs(nativeV.x()),math.fabs(nativeV.y()),math.fabs(nativeV.z())
-				if nativeX<1.03 and nativeY<1.03 and nativeZ<1.03:
+		for self.curCube in self.cubes:
+			if self.curCube:
+				invertedM,sucess=self.curCube.matrix.inverted()
+				nativeV=invertedM*QVector3D(x,y,z)
+				self.nativeStartX,self.nativeStartY,self.nativeStartZ=nativeV.x(),nativeV.y(),nativeV.z()
+				if math.fabs(self.nativeStartX)<1.03 and math.fabs(self.nativeStartY)<1.03 and math.fabs(self.nativeStartZ)<1.03:
 					finded=True
 					break
-			i=i+1
 		if not finded:
-			print 'No cube finded',x,y,z
-			return
-		for face in cube.planes:
-			if cube.faces[face]==color:
-				cube.faces[face]=(~color)&0xffffffff|0xff000000
-				cube.genList()
-				self.owner.update()
+			print 'No cube finded'
+			return False
+		for self.curFace in self.cube.planes:
+			if self.curCube.faces[self.curFace]==color:
+				break
+		return True
 	def operaContin(self,wx,wy):
-		pass
+		if not self.qVRotateAxis:
+			modelView=self.owner.modelView*self.curCube.matrix
+			depth=glReadPixelsf(wx,wy,1,1,GL_DEPTH_COMPONENT)
+			x,y,z=gluUnProject(wx,wy,depth,model=array(modelView.data(),dtype=float64))
+			if math.fabs(x)>1.03 or math.fabs(y)>1.03 or math.fabs(z)>1.03:
+				return
+			dV=[0,0,0]
+			dV[0],dV[1],dV[2]=x-self.nativeStartX,y-self.nativeStartY,z-self.nativeStartZ
+			indexs=[0,1,2]
+			for  outAxisIndex in 0,1,2:
+				if self.curFace.normal[outAxisIndex]:
+					indexs.remove(outAxisIndex)
+					dV[outAxisIndex]=0
+					break;
+			if math.fabs(dV[indexs[0]])>math.fabs(dV[indexs[1]]):
+				dV[indexs[1]]=0
+				alongAxisIndex=indexs[0]
+			else:
+				dV[indexs[0]]=0
+				alongAxisIndex=indexs[1]
+			qVNormal=QVector3D(*self.curFace.normal)
+			self.dWindowX,self.dWindowY,z=gluProject(self.nativeStartX,self.nativeStartY,self.nativeStartZ,model=array(modelView.data(),dtype=float64))
+			self.dWindowX=wx-self.dWindowX
+			self.dWindowY=wy-self.dWindowY
+			self.dWindowL=math.sqrt(self.dWindowX*self.dWindowX+self.dWindowY*self.dWindowY)
+			qVAlong=QVector3D(*dV)
+			qVRotate=QVector3D.crossProduct(qVNormal,qVAlong)
+			qVRotate=self.curCube.matrix*qVRotate
+			qVOrigin=QVector3D(0,0,0)
+			qVRefPoint=self.curCube.matrix*qVOrigin
+			self.qVRotateAxis=qVRotate-qVRefPoint
+			self.rotatingCubes=[]
+			for cube in self.cubes:
+				qVOriginTranslated=cube.matrix*qVOrigin
+				if math.fabs(QVector3D.dotProduct(qVOriginTranslated-qVRefPoint,self.qVRotateAxis))<0.04:
+					self.rotatingCubes.append(cube)
+			print len(self.rotatingCubes)
+			if len(self.rotatingCubes)!=9:
+				self.qVRotateAxis=None
+		else:
+			dX=wx-self.oldX
+			dY=wy-self.oldY
+			degree=(dX*self.dWindowX+dY*self.dWindowY)/self.dWindowL*360/self.owner.side
+			self.rotateM.setToIdentity()
+			self.rotateM.rotate(degree,self.qVRotateAxis.x(),self.qVRotateAxis.y(),self.qVRotateAxis.z())
+			for cube in self.rotatingCubes:
+				cube.matrix=self.rotateM*cube.matrix
+			self.owner.update()
+			self.oldX,self.oldY=wx,wy
 	def operaEnd(self,wx,wy):
+		self.qVRotateAxis=None
 		pass
 class MagicWidget(QGLWidget):
 	def __init__(self,parent=None):
@@ -144,13 +196,7 @@ class MagicWidget(QGLWidget):
 		self.oldY=self.h-event.y()
 		self.rotateM=QMatrix4x4()
 		if not self.passEvent:
-			depth=glReadPixelsf(self.oldX,self.oldY,1,1,GL_DEPTH_COMPONENT)
-			color=glReadPixels(self.oldX,self.oldY,1,1,GL_RGBA,GL_UNSIGNED_INT_8_8_8_8)
-			color=color[0][0]
-			if color:
-				x,y,z=gluUnProject(self.oldX,self.oldY,depth,model=array(self.modelView.data(),dtype=float64))
-				self.passEvent=True
-				self.magicCube.operaBegin(color,x,y,z,self.oldX,self.oldY)
+				self.passEvent=self.magicCube.operaBegin(self.oldX,self.oldY)
 	def mouseMoveEvent(self,event):
 		curX=event.x()
 		curY=self.h-event.y()
@@ -167,8 +213,7 @@ class MagicWidget(QGLWidget):
 		self.modelView=self.rotateM*self.modelView	
 		self.oldX=curX
 		self.oldY=curY
-		if not self.timer.isActive():
-			self.update()
+		self.update()
 	def mouseReleaseEvent(self,event):
 		endX=event.x()
 		endY=self.h-event.y()
