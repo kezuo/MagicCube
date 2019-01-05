@@ -87,8 +87,10 @@ class MagicCube:
 				self.rotateM.rotate(degree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
 				for cube in self.reArrangedCubes[index]:
 					cube.matrix=self.rotateM*cube.matrix
-		
-
+		def endCheck(self):
+			if self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
+				self.rotateAxis=None
+			self.operatingCubesIndex=None
 	def __init__(self):
 		self.cubes=[]
 		self.rotationState=MagicCube.RotationState()
@@ -176,6 +178,18 @@ class MagicCube:
 					if math.fabs(normalComponent)<self.cube.dist/3000 and self.rotationState.operatingCubesIndex==None:
 						self.rotationState.operatingCubesIndex=i/9
 					i=i+1
+		elif self.rotationState.operatingCubesIndex==None:
+			finded=False
+			for i in 0,1,2:
+				for cube in self.rotationState.reArrangedCubes[i]:
+					if cube==self.curCube:
+						finded=True
+						break
+				if finded:
+					break
+			if not finded:
+				print 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+			self.rotationState.operatingCubesIndex=i
 		else:
 			winTan=QVector3D(*gluProject(self.rotationState.objTangent.x(),self.rotationState.objTangent.y(),self.rotationState.objTangent.z(),model=array(self.owner.modelView.data(),dtype=float64)))
 			winTan.setZ(0)
@@ -186,8 +200,7 @@ class MagicCube:
 			self.owner.update()
 			self.oldX,self.oldY=wx,wy
 	def operaEnd(self,wx,wy):
-		self.rotationState.rotateAxis=None
-		self.rotationState.operatingCubesIndex=None
+		self.rotationState.endCheck()
 		pass
 class MagicWidget(QGLWidget):
 	def __init__(self,parent=None):
