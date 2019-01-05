@@ -21,7 +21,7 @@ class MagicCube:
 				self.normal=(normal[0]*self.dist,normal[1]*self.dist,normal[2]*self.dist)
 				self.color=color
 				self.indexs=indexs
-		dist=2.75
+		dist=3.2
 		face.dist=dist
 		left=face((-1,-1,-1),(-1,1,-1),(-1,1,1),(-1,-1,1),(-1,0,0),0xffffffff,(0,3,6,9,12,15,18,21,24))
 		right=face((1,-1,-1),(1,-1,1),(1,1,1),(1,1,-1),(1,0,0),0xff0000ff,(2,5,8,11,14,17,20,23,26))
@@ -32,12 +32,12 @@ class MagicCube:
 		planes=(left,right,bottom,top,near,far)
 		def __init__(self):
 			self.faces={
-			self.left:0,
-			self.right:0,
-			self.bottom:0,
-			self.top:0,
-			self.near:0,
-			self.far:0
+			self.left:0xff111111,
+			self.right:0xff222222,
+			self.bottom:0xff333333,
+			self.top:0xff444444,
+			self.near:0xff555555,
+			self.far:0xff666666
 			}
 			self.matrix=QMatrix4x4()
 			self.glList=0
@@ -66,6 +66,29 @@ class MagicCube:
 			self.rotateDegrees=[0,0,0]
 			self.objTangent=None
 			self.refPoint=None
+			self.rotateM=QMatrix4x4()
+			self.backups=[None,None,None]
+		def rotateCubes(self,degree,index=None):
+			if index==None:
+				index=self.operatingCubesIndex
+			if self.rotateDegrees[index]==0:
+				self.backups[index]=[]
+				for cube in self.reArrangedCubes[index]:
+					self.backups[index].append(QMatrix4x4(cube.matrix))
+			self.rotateM.setToIdentity()
+			self.rotateDegrees[index]=self.rotateDegrees[index]+degree
+			fitDegree=round(self.rotateDegrees[index]/90)*90
+			if math.fabs(self.rotateDegrees[index]-fitDegree)<2:
+				self.rotateDegrees[index]=0
+				self.rotateM.rotate(fitDegree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
+				for i in range(9):
+					self.reArrangedCubes[index][i].matrix=self.rotateM*self.backups[index][i]
+			else :
+				self.rotateM.rotate(degree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
+				for cube in self.reArrangedCubes[index]:
+					cube.matrix=self.rotateM*cube.matrix
+		
+
 	def __init__(self):
 		self.cubes=[]
 		self.rotationState=MagicCube.RotationState()
@@ -89,7 +112,6 @@ class MagicCube:
 				glPopMatrix()
 	def operaBegin(self,wx,wy):
 		self.oldX,self.oldY=wx,wy
-		self.rotateM=QMatrix4x4()
 		depth=glReadPixelsf(wx,wy,1,1,GL_DEPTH_COMPONENT)
 		color=(glReadPixels(wx,wy,1,1,GL_RGBA,GL_UNSIGNED_INT_8_8_8_8)[0][0]>>8)|0xff000000
 		finded=False
@@ -114,7 +136,8 @@ class MagicCube:
 				return
 			dV=[0,0,0]
 			dV[0],dV[1],dV[2]=x-self.nativeStartX,y-self.nativeStartY,z-self.nativeStartZ
-			if QVector3D(*dV).length()<0.5:return
+			if QVector3D(*dV).length()<0.01:
+				return
 			indexs=[0,1,2]
 			for  outAxisIndex in 0,1,2:
 				if self.curFace.normal[outAxisIndex]:
@@ -141,30 +164,26 @@ class MagicCube:
 					mapToCubes[normalComponent].append(cube)
 				else :
 					mapToCubes[normalComponent]=[cube]
-				if math.fabs(normalComponent)<self.cube.dist/30:
+				if math.fabs(normalComponent)<self.cube.dist/3000:
 					i=i+1
 			if i!=9:
+				self.rotationState.rotateAxis=None
 				return
 			i=0
 			for normalComponent in sorted(mapToCubes.keys()):
 				for cube in mapToCubes[normalComponent]:
 					self.rotationState.reArrangedCubes[i/9][i%9]=cube
-					if math.fabs(normalComponent)<self.cube.dist/30 and self.rotationState.operatingCubesIndex==None:
+					if math.fabs(normalComponent)<self.cube.dist/3000 and self.rotationState.operatingCubesIndex==None:
 						self.rotationState.operatingCubesIndex=i/9
 					i=i+1
 		else:
-			
 			winTan=QVector3D(*gluProject(self.rotationState.objTangent.x(),self.rotationState.objTangent.y(),self.rotationState.objTangent.z(),model=array(self.owner.modelView.data(),dtype=float64)))
 			winTan.setZ(0)
 			winTan.setX(winTan.x()-self.owner.centerX)
 			winTan.setY(winTan.y()-self.owner.centerY)
 			degree=QVector3D.dotProduct(QVector3D(wx-self.oldX,wy-self.oldY,0),winTan)*360/winTan.length()/self.owner.side
-			self.rotateM.setToIdentity()
-			self.rotateM.rotate(degree,self.rotationState.rotateAxis.x(),self.rotationState.rotateAxis.y(),self.rotationState.rotateAxis.z())
-			for cube in self.rotationState.reArrangedCubes[self.rotationState.operatingCubesIndex]:
-				cube.matrix=self.rotateM*cube.matrix
+			self.rotationState.rotateCubes(degree)
 			self.owner.update()
-		
 			self.oldX,self.oldY=wx,wy
 	def operaEnd(self,wx,wy):
 		self.rotationState.rotateAxis=None
