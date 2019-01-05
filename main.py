@@ -68,7 +68,24 @@ class MagicCube:
 			self.refPoint=None
 			self.rotateM=QMatrix4x4()
 			self.backups=[None,None,None]
+			self.animateTimer=QTimer()
+			self.animateTimer.setSingleShot(False)
+			self.animateTimer.setInterval(50)
+			self.animateTimer.timeout.connect(self.animate)
+			self.animateTimer.start()
+		def animate(self):
+			for i in 0,1,2:
+				if self.operatingCubesIndex!=i and self.rotateDegrees[i]!=0:
+					fitDegree=round(self.rotateDegrees[i]/90)*90
+					if fitDegree>self.rotateDegrees[i]:
+						self.rotateCubes(2,i)
+					else:
+						self.rotateCubes(-2,i)
+			if self.operatingCubesIndex==None and self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
+				self.rotateAxis=None
 		def rotateCubes(self,degree,index=None):
+			if self.rotateAxis==None:
+				return
 			if index==None:
 				index=self.operatingCubesIndex
 			if self.rotateDegrees[index]==0:
@@ -187,8 +204,6 @@ class MagicCube:
 						break
 				if finded:
 					break
-			if not finded:
-				print 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 			self.rotationState.operatingCubesIndex=i
 		else:
 			winTan=QVector3D(*gluProject(self.rotationState.objTangent.x(),self.rotationState.objTangent.y(),self.rotationState.objTangent.z(),model=array(self.owner.modelView.data(),dtype=float64)))
@@ -197,7 +212,6 @@ class MagicCube:
 			winTan.setY(winTan.y()-self.owner.centerY)
 			degree=QVector3D.dotProduct(QVector3D(wx-self.oldX,wy-self.oldY,0),winTan)*360/winTan.length()/self.owner.side
 			self.rotationState.rotateCubes(degree)
-			self.owner.update()
 			self.oldX,self.oldY=wx,wy
 	def operaEnd(self,wx,wy):
 		self.rotationState.endCheck()
@@ -212,12 +226,12 @@ class MagicWidget(QGLWidget):
 		self.timer.setSingleShot(False)
 		self.timer.timeout.connect(self.animate)
 		self.timer.setInterval(25)
+		self.timer.start()
 	def initializeGL(self):
 		self.magicCube=MagicCube()
 		self.magicCube.owner=self
 		self.passEvent=False
 	def animate(self):
-		self.modelView.rotate(1,1,1,1)
 		self.update()
 	def __setGLPaintState(self):
 		glEnable(GL_BLEND)
@@ -261,7 +275,6 @@ class MagicWidget(QGLWidget):
 		self.modelView=self.rotateM*self.modelView	
 		self.oldX=curX
 		self.oldY=curY
-		self.update()
 	def mouseReleaseEvent(self,event):
 		endX=event.x()
 		endY=self.h-event.y()
