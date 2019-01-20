@@ -77,12 +77,12 @@ class MagicCube:
 			for i in 0,1,2:
 				if self.operatingCubesIndex!=i and self.rotateDegrees[i]!=0:
 					fitDegree=round(self.rotateDegrees[i]/90)*90
-					if fitDegree>self.rotateDegrees[i]:
+					if math.fabs(self.rotateDegrees[i]-fitDegree)<2:
+						self.rotateCubes(fitDegree-self.rotateDegrees[i],i)
+					elif fitDegree>self.rotateDegrees[i]:
 						self.rotateCubes(2,i)
 					else:
 						self.rotateCubes(-2,i)
-			if self.operatingCubesIndex==None and self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
-				self.rotateAxis=None
 		def rotateCubes(self,degree,index=None):
 			if self.rotateAxis==None:
 				return
@@ -95,19 +95,18 @@ class MagicCube:
 			self.rotateM.setToIdentity()
 			self.rotateDegrees[index]=self.rotateDegrees[index]+degree
 			fitDegree=round(self.rotateDegrees[index]/90)*90
-			if math.fabs(self.rotateDegrees[index]-fitDegree)<2:
+			if math.fabs(self.rotateDegrees[index]-fitDegree)<0.001:
 				self.rotateDegrees[index]=0
 				self.rotateM.rotate(fitDegree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
+				if self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
+					self.rotateAxis=None
 				for i in range(9):
 					self.reArrangedCubes[index][i].matrix=self.rotateM*self.backups[index][i]
+
 			else :
 				self.rotateM.rotate(degree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
 				for cube in self.reArrangedCubes[index]:
 					cube.matrix=self.rotateM*cube.matrix
-		def endCheck(self):
-			if self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
-				self.rotateAxis=None
-			self.operatingCubesIndex=None
 	def __init__(self):
 		self.cubes=[]
 		self.rotationState=MagicCube.RotationState()
@@ -214,8 +213,7 @@ class MagicCube:
 			self.rotationState.rotateCubes(degree)
 			self.oldX,self.oldY=wx,wy
 	def operaEnd(self,wx,wy):
-		self.rotationState.endCheck()
-		pass
+		self.rotationState.operatingCubesIndex=None
 class MagicWidget(QGLWidget):
 	def __init__(self,parent=None):
 		QGLWidget.__init__(self,parent)
@@ -226,7 +224,7 @@ class MagicWidget(QGLWidget):
 		self.timer.setSingleShot(False)
 		self.timer.timeout.connect(self.animate)
 		self.timer.setInterval(25)
-		self.timer.start()
+		self.timer.start() 
 	def initializeGL(self):
 		self.magicCube=MagicCube()
 		self.magicCube.owner=self
