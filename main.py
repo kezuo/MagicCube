@@ -11,6 +11,17 @@ class MagicCube:
 	edgeIndexs=(1,5,7,3,19,23,25,21)
 	centerIndexs=(4,10,14,16,12,22)
 	originIndex=13
+	operationIndexs=(
+	((6,3,0,42,39,36,20,23,26,45,48,51),(35,32,29,28,27,30,33,34)),
+	(7,4,1,43,40,37,19,22,25,46,49,52),
+	((8,5,2,44,41,38,18,21,24,47,50,53),(15,12,9,10,11,14,17,16)),
+	((8,7,6,35,34,33,26,25,24,17,16,15),(53,52,51,48,45,46,47,50)),
+	(5,4,3,32,31,30,23,22,21,14,13,12),
+	((2,1,0,29,28,27,20,19,18,11,10,9),(44,43,42,39,36,37,38,41)),
+	((44,43,42,29,32,35,51,52,53,15,12,9),(0,1,2,5,8,7,6)),
+	(41,40,39,28,31,34,48,49,50,16,13,10),
+	((38,37,36,27,30,33,45,46,47,17,14,11),(20,19,18,21,24,25,26))
+	)
 	class cube:
 		class face:
 			def __init__(self,a,b,c,d,normal,color,indexs):
@@ -21,23 +32,23 @@ class MagicCube:
 				self.normal=(normal[0]*self.dist,normal[1]*self.dist,normal[2]*self.dist)
 				self.color=color
 				self.indexs=indexs
-		dist=3.2
+		dist=2.2
 		face.dist=dist
-		left=face((-1,-1,-1),(-1,1,-1),(-1,1,1),(-1,-1,1),(-1,0,0),0xffffffff,(0,3,6,9,12,15,18,21,24))
-		right=face((1,-1,-1),(1,-1,1),(1,1,1),(1,1,-1),(1,0,0),0xff0000ff,(2,5,8,11,14,17,20,23,26))
-		bottom=face((-1,-1,-1),(-1,-1,1),(1,-1,1),(1,-1,-1),(0,-1,0),0xffff0000,(18,19,20,21,22,23,24,25,26))
-		top=face((-1,1,-1),(1,1,-1),(1,1,1),(-1,1,1),(0,1,0),0xff00ffff,(0,1,2,3,4,5,6,7,8))
-		near=face((-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(0,0,-1),0xff00ff00,(0,1,2,9,10,11,18,19,20))
-		far=face((-1,-1,1),(-1,1,1),(1,1,1),(1,-1,1),(0,0,1),0xffff00ff,(6,7,8,15,16,17,24,25,26))
+		left=face((-1,-1,-1),(-1,1,-1),(-1,1,1),(-1,-1,1),(-1,0,0),0xffffffff,{0:29,3:28,6:27,9:32,12:31,15:30,18:35,21:34,24:33})
+		right=face((1,-1,-1),(1,-1,1),(1,1,1),(1,1,-1),(1,0,0),0xff0000ff,{2:9,5:10,8:11,11:12,14:13,17:14,20:15,23:16,26:17})
+		bottom=face((-1,-1,-1),(-1,-1,1),(1,-1,1),(1,-1,-1),(0,-1,0),0xffff0000,{18:51,19:52,20:53,21:48,22:49,23:50,24:45,25:46,26:47})
+		top=face((-1,1,-1),(1,1,-1),(1,1,1),(-1,1,1),(0,1,0),0xff00ffff,{0:42,1:43,2:44,3:39,4:40,5:41,6:36,7:37,8:38})
+		near=face((-1,-1,-1),(1,-1,-1),(1,1,-1),(-1,1,-1),(0,0,-1),0xff00ff00,{0:0,1:1,2:2,9:3,10:4,11:5,18:6,19:7,20:8})
+		far=face((-1,-1,1),(-1,1,1),(1,1,1),(1,-1,1),(0,0,1),0xffff00ff,{6:20,7:19,8:18,15:23,16:22,17:21,24:26,25:25,26:24})
 		planes=(left,right,bottom,top,near,far)
 		def __init__(self):
 			self.faces={
-			self.left:0xff111111,
-			self.right:0xff222222,
-			self.bottom:0xff333333,
-			self.top:0xff444444,
-			self.near:0xff555555,
-			self.far:0xff666666
+			self.left:[0xff111111,-1],
+			self.right:[0xff222222,-1],
+			self.bottom:[0xff333333,-1],
+			self.top:[0xff444444,-1],
+			self.near:[0xff555555,-1],
+			self.far:[0xff666666,-1]
 			}
 			self.matrix=QMatrix4x4()
 			self.glList=0
@@ -49,7 +60,7 @@ class MagicCube:
 			for face in self.faces:
 				if self.faces[face]:
 					qColor=QColor()
-					qColor.setRgba(self.faces[face])
+					qColor.setRgba(self.faces[face][0])
 					glBegin(GL_TRIANGLE_FAN)
 					glColor(qColor.getRgbF())
 					glVertex3f(*face.a)
@@ -110,16 +121,39 @@ class MagicCube:
 	def __init__(self):
 		self.cubes=[]
 		self.rotationState=MagicCube.RotationState()
+		self.state=range(54)
+		self.centerPosition=range(54)
 		for i in range(27):
 			self.cubes.append(MagicCube.cube())
 		for plane in MagicCube.cube.planes:
 			for i in plane.indexs:
-				if self.cubes[i]:
-					self.cubes[i].faces[plane]=plane.color
-					self.cubes[i].matrix.translate(*plane.normal)
+				self.cubes[i].faces[plane][0]=plane.color
+				self.cubes[i].faces[plane][1]=plane.indexs[i]
+				self.cubes[i].matrix.translate(*plane.normal)
+		for plane in MagicCube.cube.planes:
+			planePosition=QVector3D(*plane.normal)
+			for i in plane.indexs:
+				centerPosition=self.cubes[i].matrix*planePosition
+				self.centerPosition[plane.indexs[i]]=centerPosition
 		for i in range(27):
 			if self.cubes[i]:
 				self.cubes[i].genList()
+	def currentState(self):
+		for i in range(54):
+			position=self.centerPosition[i]
+			finded=False
+			for cube in self.cubes:
+				for face in cube.faces:
+					sub=cube.matrix*QVector3D(*face.normal)-position
+					if sub.length()<0.01:
+						self.state[i]=cube.faces[face][1]
+						finded=True
+						break
+				if finded:
+					break
+		print self.state
+	def operate(self,kind,times):
+		pass
 	def draw(self):
 		for cube in self.cubes:
 			if cube:
@@ -143,7 +177,7 @@ class MagicCube:
 		if not finded:
 			return False
 		for self.curFace in self.cube.planes:
-			if self.curCube.faces[self.curFace]==color:
+			if self.curCube.faces[self.curFace][0]==color:
 				break
 		return True
 	def operaContin(self,wx,wy):
@@ -154,7 +188,7 @@ class MagicCube:
 				return
 			dV=[0,0,0]
 			dV[0],dV[1],dV[2]=x-self.nativeStartX,y-self.nativeStartY,z-self.nativeStartZ
-			if QVector3D(*dV).length()<0.01:
+			if QVector3D(*dV).length()<0.02:
 				return
 			indexs=[0,1,2]
 			for  outAxisIndex in 0,1,2:
@@ -284,27 +318,18 @@ class MagicWidget(QGLWidget):
 		self.__setGLPaintState()
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
 		self.magicCube.draw()
-app=QApplication(['demo'])
+app=QApplication(['MagicCube'])
 glFormat=QGLFormat()
 glFormat.setVersion(3,0)
-glFormat.setAlpha(True)
 QGLFormat.setDefaultFormat(glFormat)
 overallWidget=QWidget()
 overallWidget.setMinimumSize(400,600)
 vBox=QVBoxLayout()
-topButton=QPushButton("topButton")
-bottomButton=QPushButton("bottomButton")
-bar=QSlider(Qt.Horizontal)
-bottomButton.clicked.connect(lambda :magicWidget.timer.start())
-topButton.clicked.connect(lambda :magicWidget.timer.stop())
-def setValue(x):
-	pass
-bar.valueChanged.connect(setValue)
+topButton=QPushButton("top")
 magicWidget=MagicWidget()
+topButton.clicked.connect(lambda :magicWidget.magicCube.currentState())
 overallWidget.setLayout(vBox)
 vBox.addWidget(topButton)
-vBox.addWidget(bottomButton)
 vBox.addWidget(magicWidget)
-vBox.addWidget(bar)
 overallWidget.show()
 app.exec_()
