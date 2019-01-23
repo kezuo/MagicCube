@@ -71,6 +71,8 @@ class MagicCube:
 			glEndList()
 	class RotationState:
 		def __init__(self):
+			self.controledIndex=None
+			self.remainDegree=0
 			self.rotateAxis=None
 			self.reArrangedCubes=[range(9),range(9),range(9)]
 			self.operatingCubesIndex=None
@@ -84,7 +86,20 @@ class MagicCube:
 			self.animateTimer.setInterval(50)
 			self.animateTimer.timeout.connect(self.animate)
 			self.animateTimer.start()
+			self.mutex=QMutex()
 		def animate(self):
+			if self.controledIndex!=None:
+				if math.fabs(self.remainDegree)<4:
+					self.rotateCubes(self.remainDegree,self.controledIndex)
+					self.remainDegree=0
+					self.controledIndex=None
+				elif self.remainDegree>0:
+					self.rotateCubes(4,self.controledIndex)
+					self.remainDegree=self.remainDegree-4
+				elif self.remainDegree<0:
+					self.rotateCubes(-4,self.controledIndex)
+					self.remainDegree=self.remainDegree+4
+				return
 			for i in 0,1,2:
 				if self.operatingCubesIndex!=i and self.rotateDegrees[i]!=0:
 					fitDegree=round(self.rotateDegrees[i]/90)*90
@@ -95,7 +110,9 @@ class MagicCube:
 					else:
 						self.rotateCubes(-2,i)
 		def rotateCubes(self,degree,index=None):
+			self.mutex.lock()
 			if self.rotateAxis==None:
+				self.mutex.lock()
 				return
 			if index==None:
 				index=self.operatingCubesIndex
@@ -109,7 +126,7 @@ class MagicCube:
 			if math.fabs(self.rotateDegrees[index]-fitDegree)<0.001:
 				self.rotateDegrees[index]=0
 				self.rotateM.rotate(fitDegree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
-				if self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
+				if self.remainDegree==0 and self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
 					self.rotateAxis=None
 				for i in range(9):
 					self.reArrangedCubes[index][i].matrix=self.rotateM*self.backups[index][i]
@@ -118,6 +135,8 @@ class MagicCube:
 				self.rotateM.rotate(degree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
 				for cube in self.reArrangedCubes[index]:
 					cube.matrix=self.rotateM*cube.matrix
+			self.mutex.unlock()
+
 	def __init__(self):
 		self.cubes=[]
 		self.rotationState=MagicCube.RotationState()
@@ -153,7 +172,33 @@ class MagicCube:
 					break
 		print self.state
 	def operate(self,kind,times):
-		pass
+		self.rotationState.mutex.lock()
+		if kind<0 or kind>8 or self.rotationState.remainDegree!=0 or self.rotationState.rotateDegrees[0]!=0 or self.rotationState.rotateDegrees[1]!=0 or self.rotationState.rotateDegrees[2]!=0:
+			self.rotationState.mutex.unlock()
+			return False
+		direction=kind/3
+		self.rotationState.controledIndex=kind%3
+		self.rotationState.rotateAxis=[0,0,0]
+		self.rotationState.rotateAxis[direction]=1
+		self.rotationState.rotateAxis=QVector3D(*self.rotationState.rotateAxis)
+		self.rotationState.remainDegree=times*90
+		refPoint=QVector3D(0,0,0)
+		origin=refPoint
+		mapToCubes={}
+		for cube in self.cubes:
+			originTranslated=cube.matrix*origin
+			normalComponent=QVector3D.dotProduct(originTranslated-refPoint,self.rotationState.rotateAxis)/self.rotationState.rotateAxis.length()
+			if mapToCubes.has_key(normalComponent):
+				mapToCubes[normalComponent].append(cube)
+			else :
+				mapToCubes[normalComponent]=[cube]
+		i=0
+		for normalComponent in sorted(mapToCubes.keys()):
+			for cube in mapToCubes[normalComponent]:
+				self.rotationState.reArrangedCubes[i/9][i%9]=cube
+				i=i+1
+		self.rotationState.mutex.unlock()
+		return True
 	def draw(self):
 		for cube in self.cubes:
 			if cube:
@@ -318,6 +363,27 @@ class MagicWidget(QGLWidget):
 		self.__setGLPaintState()
 		glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT)
 		self.magicCube.draw()
+thread=QThread()
+def performAction(actionString):
+	if thread.isRunning():
+		return
+	thread.run=lambda:job(actionString)
+	thread.start()
+def job(actionString):
+	l=[int(i) for i in actionString.split(' ')]
+	if len(l)<2:
+		return
+	i=0
+	kind=l[0]
+	times=l[1]
+	while True:
+		print kind,times
+		while not magicWidget.magicCube.operate(kind,times):pass
+		if i+3<len(l):
+			i=i+2
+			kind=l[i]
+			times=l[i+1]
+		else:break
 app=QApplication(['MagicCube'])
 glFormat=QGLFormat()
 glFormat.setVersion(3,0)
@@ -325,11 +391,15 @@ QGLFormat.setDefaultFormat(glFormat)
 overallWidget=QWidget()
 overallWidget.setMinimumSize(400,600)
 vBox=QVBoxLayout()
-topButton=QPushButton("top")
+button=QPushButton()
+lineEdit=QLineEdit()
+lineEdit.setFocus()
 magicWidget=MagicWidget()
-topButton.clicked.connect(lambda :magicWidget.magicCube.currentState())
+button.clicked.connect(lambda :magicWidget.magicCube.currentState())
+lineEdit.editingFinished.connect(lambda :performAction(lineEdit.text()))
 overallWidget.setLayout(vBox)
-vBox.addWidget(topButton)
+vBox.addWidget(button)
+vBox.addWidget(lineEdit)
 vBox.addWidget(magicWidget)
 overallWidget.show()
 app.exec_()
