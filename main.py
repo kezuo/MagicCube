@@ -11,17 +11,7 @@ class MagicCube:
 	edgeIndexs=(1,5,7,3,19,23,25,21)
 	centerIndexs=(4,10,14,16,12,22)
 	originIndex=13
-	operationIndexs=(
-	((6,3,0,42,39,36,20,23,26,45,48,51),(35,32,29,28,27,30,33,34)),
-	(7,4,1,43,40,37,19,22,25,46,49,52),
-	((8,5,2,44,41,38,18,21,24,47,50,53),(15,12,9,10,11,14,17,16)),
-	((8,7,6,35,34,33,26,25,24,17,16,15),(53,52,51,48,45,46,47,50)),
-	(5,4,3,32,31,30,23,22,21,14,13,12),
-	((2,1,0,29,28,27,20,19,18,11,10,9),(44,43,42,39,36,37,38,41)),
-	((44,43,42,29,32,35,51,52,53,15,12,9),(0,1,2,5,8,7,6)),
-	(41,40,39,28,31,34,48,49,50,16,13,10),
-	((38,37,36,27,30,33,45,46,47,17,14,11),(20,19,18,21,24,25,26))
-	)
+
 	class cube:
 		class face:
 			def __init__(self,a,b,c,d,normal,color,indexs):
@@ -70,9 +60,21 @@ class MagicCube:
 					glEnd()
 			glEndList()
 	class RotationState:
+		operationIndexs=(
+		((6,3,0,42,39,36,20,23,26,45,48,51),(35,32,29,28,27,30,33,34)),
+		(7,4,1,43,40,37,19,22,25,46,49,52),
+		((8,5,2,44,41,38,18,21,24,47,50,53),(15,12,9,10,11,14,17,16)),
+		((8,7,6,35,34,33,26,25,24,17,16,15),(53,52,51,48,45,46,47,50)),
+		(5,4,3,32,31,30,23,22,21,14,13,12),
+		((2,1,0,29,28,27,20,19,18,11,10,9),(44,43,42,39,36,37,38,41)),
+		((44,43,42,29,32,35,51,52,53,15,12,9),(0,1,2,5,8,7,6,3)),
+		(41,40,39,28,31,34,48,49,50,16,13,10),
+		((38,37,36,27,30,33,45,46,47,17,14,11),(20,19,18,21,24,25,26,23))
+		)
 		def __init__(self):
 			self.controledIndex=None
 			self.remainDegree=0
+			self.state=range(54)
 			self.rotateAxis=None
 			self.reArrangedCubes=[range(9),range(9),range(9)]
 			self.operatingCubesIndex=None
@@ -122,10 +124,21 @@ class MagicCube:
 					self.backups[index].append(QMatrix4x4(cube.matrix))
 			self.rotateM.setToIdentity()
 			self.rotateDegrees[index]=self.rotateDegrees[index]+degree
-			fitDegree=round(self.rotateDegrees[index]/90)*90
-			if math.fabs(self.rotateDegrees[index]-fitDegree)<0.001:
+			fitDegree=round(self.rotateDegrees[index]/90.0)*90
+			if math.fabs(self.rotateDegrees[index]-fitDegree)<0.000001:
 				self.rotateDegrees[index]=0
 				self.rotateM.rotate(fitDegree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
+				times=round(fitDegree/90)
+				if self.rotateAxis.x()!=0:
+					times=times*self.rotateAxis.x()
+					kind=index
+				elif self.rotateAxis.y()!=0:
+					times=times*self.rotateAxis.y()
+					kind=index+3
+				elif self.rotateAxis.z()!=0:
+					times=times*self.rotateAxis.z()
+					kind=index+6
+				self.changeState(kind,int(times))
 				if self.remainDegree==0 and self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
 					self.rotateAxis=None
 				for i in range(9):
@@ -136,11 +149,28 @@ class MagicCube:
 				for cube in self.reArrangedCubes[index]:
 					cube.matrix=self.rotateM*cube.matrix
 			self.mutex.unlock()
-
+		def changeState(self,kind,times):
+			times=times%4
+			if len(self.operationIndexs[kind])>2:
+				for i in range(times):
+					a,b,c=self.state[self.operationIndexs[kind][9]],self.state[self.operationIndexs[kind][10]],self.state[self.operationIndexs[kind][11]]
+					for j in 2,1,0:	
+						self.state[self.operationIndexs[kind][(j+1)*3]],self.state[self.operationIndexs[kind][(j+1)*3+1]],self.state[self.operationIndexs[kind][(j+1)*3+2]]=self.state[self.operationIndexs[kind][j*3]],self.state[self.operationIndexs[kind][j*3+1]],self.state[self.operationIndexs[kind][j*3+2]]
+					self.state[self.operationIndexs[kind][0]],self.state[self.operationIndexs[kind][1]],self.state[self.operationIndexs[kind][2]]=a,b,c
+			else:
+				for i in range(times):
+					a,b,c=self.state[self.operationIndexs[kind][0][9]],self.state[self.operationIndexs[kind][0][10]],self.state[self.operationIndexs[kind][0][11]]
+					for j in 2,1,0:	
+						self.state[self.operationIndexs[kind][0][(j+1)*3]],self.state[self.operationIndexs[kind][0][(j+1)*3+1]],self.state[self.operationIndexs[kind][0][(j+1)*3+2]]=self.state[self.operationIndexs[kind][0][j*3]],self.state[self.operationIndexs[kind][0][j*3+1]],self.state[self.operationIndexs[kind][0][j*3+2]]
+					self.state[self.operationIndexs[kind][0][0]],self.state[self.operationIndexs[kind][0][1]],self.state[self.operationIndexs[kind][0][2]]=a,b,c
+					a,b=self.state[self.operationIndexs[kind][1][6]],self.state[self.operationIndexs[kind][1][7]]
+					for j in 2,1,0:	
+						self.state[self.operationIndexs[kind][1][(j+1)*2]],self.state[self.operationIndexs[kind][1][(j+1)*2+1]]=self.state[self.operationIndexs[kind][1][j*2]],self.state[self.operationIndexs[kind][1][j*2+1]]
+					self.state[self.operationIndexs[kind][1][0]],self.state[self.operationIndexs[kind][1][1]]=a,b
+	
 	def __init__(self):
 		self.cubes=[]
 		self.rotationState=MagicCube.RotationState()
-		self.state=range(54)
 		self.centerPosition=range(54)
 		for i in range(27):
 			self.cubes.append(MagicCube.cube())
@@ -158,6 +188,11 @@ class MagicCube:
 			if self.cubes[i]:
 				self.cubes[i].genList()
 	def currentState(self):
+		self.rotationState.mutex.lock()
+		if self.rotationState.remainDegree!=0 or self.rotationState.rotateDegrees[0]!=0 or self.rotationState.rotateDegrees[1]!=0 or self.rotationState.rotateDegrees[2]!=0:
+			self.rotationState.mutex.unlock()
+			return False
+		state=range(54)
 		for i in range(54):
 			position=self.centerPosition[i]
 			finded=False
@@ -165,12 +200,14 @@ class MagicCube:
 				for face in cube.faces:
 					sub=cube.matrix*QVector3D(*face.normal)-position
 					if sub.length()<0.01:
-						self.state[i]=cube.faces[face][1]
+						state[i]=cube.faces[face][1]
 						finded=True
 						break
 				if finded:
 					break
-		print self.state
+		self.rotationState.mutex.unlock()
+		return state
+
 	def operate(self,kind,times):
 		self.rotationState.mutex.lock()
 		if kind<0 or kind>8 or self.rotationState.remainDegree!=0 or self.rotationState.rotateDegrees[0]!=0 or self.rotationState.rotateDegrees[1]!=0 or self.rotationState.rotateDegrees[2]!=0:
@@ -384,6 +421,14 @@ def job(actionString):
 			kind=l[i]
 			times=l[i+1]
 		else:break
+	while True:
+		state=magicWidget.magicCube.currentState()
+		if state!=False:break
+	for i in range(54):
+		if state[i]!=magicWidget.magicCube.rotationState.state[i]:
+			print False
+			return
+	print True
 app=QApplication(['MagicCube'])
 glFormat=QGLFormat()
 glFormat.setVersion(3,0)
@@ -393,13 +438,13 @@ overallWidget.setMinimumSize(400,600)
 vBox=QVBoxLayout()
 button=QPushButton()
 lineEdit=QLineEdit()
-lineEdit.setFocus()
 magicWidget=MagicWidget()
 button.clicked.connect(lambda :magicWidget.magicCube.currentState())
-lineEdit.editingFinished.connect(lambda :performAction(lineEdit.text()))
+lineEdit.returnPressed.connect(lambda :performAction(lineEdit.text()))
 overallWidget.setLayout(vBox)
 vBox.addWidget(button)
 vBox.addWidget(lineEdit)
 vBox.addWidget(magicWidget)
 overallWidget.show()
+lineEdit.setFocus()
 app.exec_()
