@@ -130,13 +130,16 @@ class MagicCube:
 				self.rotateM.rotate(fitDegree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
 				times=round(fitDegree/90)
 				if self.rotateAxis.x()!=0:
-					times=times*self.rotateAxis.x()
+					if self.rotateAxis.x()<0:
+						times=times*-1
 					kind=index
 				elif self.rotateAxis.y()!=0:
-					times=times*self.rotateAxis.y()
+					if self.rotateAxis.y()<0:
+						times=times*-1
 					kind=index+3
 				elif self.rotateAxis.z()!=0:
-					times=times*self.rotateAxis.z()
+					if self.rotateAxis.z()<0:
+						times=times*-1
 					kind=index+6
 				self.changeState(kind,int(times))
 				if self.remainDegree==0 and self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
