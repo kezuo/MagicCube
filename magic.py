@@ -66,9 +66,9 @@ class MagicCube:
 		((8,7,6,35,34,33,26,25,24,17,16,15),(53,52,51,48,45,46,47,50)),
 		(5,4,3,32,31,30,23,22,21,14,13,12),
 		((2,1,0,29,28,27,20,19,18,11,10,9),(44,43,42,39,36,37,38,41)),
-		((44,43,42,29,32,35,51,52,53,15,12,9),(0,1,2,5,8,7,6,3)),
+		((44,43,42,29,32,35,51,52,53,15,12,9),(2,1,0,3,6,7,8,5)),
 		(41,40,39,28,31,34,48,49,50,16,13,10),
-		((38,37,36,27,30,33,45,46,47,17,14,11),(20,19,18,21,24,25,26,23))
+		((38,37,36,27,30,33,45,46,47,17,14,11),(18,19,20,23,26,25,24,21))
 		)
 		def __init__(self):
 			self.controledIndex=None
@@ -90,16 +90,18 @@ class MagicCube:
 			self.mutex=QMutex()
 		def animate(self):
 			if self.controledIndex!=None:
-				if math.fabs(self.remainDegree)<4:
-					self.rotateCubes(self.remainDegree,self.controledIndex)
-					self.remainDegree=0
+				index=self.controledIndex
+				remain=self.remainDegree
+				if math.fabs(self.remainDegree)<=4:
 					self.controledIndex=None
+					self.remainDegree=0
+					self.rotateCubes(remain,index)
 				elif self.remainDegree>0:
-					self.rotateCubes(4,self.controledIndex)
 					self.remainDegree=self.remainDegree-4
+					self.rotateCubes(4,self.controledIndex)
 				elif self.remainDegree<0:
-					self.rotateCubes(-4,self.controledIndex)
 					self.remainDegree=self.remainDegree+4
+					self.rotateCubes(-4,self.controledIndex)
 				return
 			for i in 0,1,2:
 				if self.operatingCubesIndex!=i and self.rotateDegrees[i]!=0:
@@ -128,24 +130,27 @@ class MagicCube:
 				self.rotateDegrees[index]=0
 				self.rotateM.rotate(fitDegree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
 				times=round(fitDegree/90)
+				uniformIndex=index
 				if self.rotateAxis.x()!=0:
 					if self.rotateAxis.x()<0:
 						times=times*-1
-					kind=index
+						uniformIndex=2-index
+					kind=uniformIndex
 				elif self.rotateAxis.y()!=0:
 					if self.rotateAxis.y()<0:
 						times=times*-1
-					kind=index+3
+						uniformIndex=2-index
+					kind=uniformIndex+3
 				elif self.rotateAxis.z()!=0:
 					if self.rotateAxis.z()<0:
 						times=times*-1
-					kind=index+6
-				self.changeState(kind,int(times))
+						uniformIndex=2-index
+					kind=uniformIndex+6
 				if self.remainDegree==0 and self.rotateDegrees[0]==0 and self.rotateDegrees[1]==0 and self.rotateDegrees[2]==0:
 					self.rotateAxis=None
 				for i in range(9):
 					self.reArrangedCubes[index][i].matrix=self.rotateM*self.backups[index][i]
-
+				self.changeState(kind,int(times))
 			else :
 				self.rotateM.rotate(degree,self.rotateAxis.x(),self.rotateAxis.y(),self.rotateAxis.z())
 				for cube in self.reArrangedCubes[index]:
@@ -153,6 +158,7 @@ class MagicCube:
 			self.mutex.unlock()
 		def changeState(self,kind,times):
 			times=times%4
+			print 'changestate',kind,times
 			if len(self.operationIndexs[kind])>2:
 				for i in range(times):
 					a,b,c=self.state[self.operationIndexs[kind][9]],self.state[self.operationIndexs[kind][10]],self.state[self.operationIndexs[kind][11]]
@@ -169,10 +175,19 @@ class MagicCube:
 					for j in 2,1,0:	
 						self.state[self.operationIndexs[kind][1][(j+1)*2]],self.state[self.operationIndexs[kind][1][(j+1)*2+1]]=self.state[self.operationIndexs[kind][1][j*2]],self.state[self.operationIndexs[kind][1][j*2+1]]
 					self.state[self.operationIndexs[kind][1][0]],self.state[self.operationIndexs[kind][1][1]]=a,b
-	
+			current=self.owner.currentState()
+			if current==False:
+				print 'unaligned'
+				return
+			for i in range(54):
+				if self.state[i]!=current[i]:
+					print 'state error'
+					return
+			print 'ok'
 	def __init__(self):
 		self.cubes=[]
 		self.rotationState=MagicCube.RotationState()
+		self.rotationState.owner=self
 		self.centerPosition=range(54)
 		for i in range(27):
 			self.cubes.append(MagicCube.cube())
@@ -190,11 +205,8 @@ class MagicCube:
 			if self.cubes[i]:
 				self.cubes[i].genList()
 	def currentState(self):
-		self.rotationState.mutex.lock()
-		if self.rotationState.remainDegree!=0 or self.rotationState.rotateDegrees[0]!=0 or self.rotationState.rotateDegrees[1]!=0 or self.rotationState.rotateDegrees[2]!=0:
-			self.rotationState.mutex.unlock()
-			return False
 		state=range(54)
+		aligned=0
 		for i in range(54):
 			position=self.centerPosition[i]
 			finded=False
@@ -203,11 +215,14 @@ class MagicCube:
 					sub=cube.matrix*QVector3D(*face.normal)-position
 					if sub.length()<0.01:
 						state[i]=cube.faces[face][1]
+						aligned=aligned+1
 						finded=True
 						break
 				if finded:
 					break
-		self.rotationState.mutex.unlock()
+		print 'aligned',aligned
+		if aligned!=54:
+			return False
 		return state
 
 	def operate(self,kind,times):

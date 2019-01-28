@@ -1,15 +1,16 @@
 from PyQt4.QtGui import *
 from PyQt4.QtOpenGL import *
 from PyQt4.QtCore import *
-from OpenGL.GL import *#For some reason it's needed,otherwise the 'cannot make invaild context current' error jump out oddly.
+from OpenGL.GL import *#For some reason it's needed,otherwise the 'cannot make invaild context current' error jump out oddly
 from magic import MagicWidget
-thread=QThread()
-def performAction(actionString):
-	if thread.isRunning():
+import random
+threadInput=QThread()
+def performInput():
+	if threadInput.isRunning():
 		return
-	thread.run=lambda:job(actionString)
-	thread.start()
-def job(actionString):
+	threadInput.run=lambda:jobInput(lineEdit.text())
+	threadInput.start()
+def jobInput(actionString):
 	l=[int(i) for i in actionString.split(' ')]
 	if len(l)<2:
 		return
@@ -24,14 +25,19 @@ def job(actionString):
 			kind=l[i]
 			times=l[i+1]
 		else:break
-	while True:
-		state=magicWidget.magicCube.currentState()
-		if state!=False:break
-	for i in range(54):
-		if state[i]!=magicWidget.magicCube.rotationState.state[i]:
-			print False
-			return
-	print True
+threadRandom=QThread()
+def swichRandom():
+	global stop
+	if threadRandom.isRunning():
+		stop=True
+	else:
+		stop=False
+		threadRandom.start()
+def jobRandom():
+	global stop
+	while not stop:
+		while not magicWidget.magicCube.operate(random.randint(0,8),random.randint(-2,2)):pass
+threadRandom.run=jobRandom
 app=QApplication(['MagicCube'])
 glFormat=QGLFormat()
 glFormat.setVersion(3,0)
@@ -39,15 +45,15 @@ QGLFormat.setDefaultFormat(glFormat)
 overallWidget=QWidget()
 overallWidget.setMinimumSize(400,600)
 vBox=QVBoxLayout()
-button=QPushButton()
+button=QPushButton('Swich randomly operation')
 lineEdit=QLineEdit()
 magicWidget=MagicWidget()
-button.clicked.connect(lambda :magicWidget.magicCube.currentState())
-lineEdit.returnPressed.connect(lambda :performAction(lineEdit.text()))
+button.clicked.connect(swichRandom)
+lineEdit.returnPressed.connect(performInput)
 overallWidget.setLayout(vBox)
 vBox.addWidget(button)
 vBox.addWidget(lineEdit)
 vBox.addWidget(magicWidget)
 overallWidget.show()
-lineEdit.setFocus()
+lineEdit.setPlaceholderText('Operation input')
 app.exec_()
