@@ -115,7 +115,7 @@ class MagicCube:
 		def rotateCubes(self,degree,index=None):
 			self.mutex.lock()
 			if self.rotateAxis==None:
-				self.mutex.lock()
+				self.mutex.unlock()
 				return
 			if index==None:
 				index=self.operatingCubesIndex
@@ -265,6 +265,7 @@ class MagicCube:
 		self.oldX,self.oldY=wx,wy
 		depth=glReadPixelsf(wx,wy,1,1,GL_DEPTH_COMPONENT)
 		color=(glReadPixels(wx,wy,1,1,GL_RGBA,GL_UNSIGNED_INT_8_8_8_8)[0][0]>>8)|0xff000000
+		print color
 		finded=False
 		for self.curCube in self.cubes:
 			if self.curCube:
